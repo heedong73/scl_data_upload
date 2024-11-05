@@ -80,9 +80,9 @@ def get_year_month_choices():
     return choices
 
 class ExcelUploadForm(forms.Form):
-    company_choices = [(company.code, company.name ) for company in Company.objects.all()]
+    #company_choices = [(company.code, company.name ) for company in Company.objects.all()]
     
-    company = forms.ChoiceField(choices=company_choices, label='회사명 선택', widget=forms.Select(attrs={'class': 'form-select'}))
+    company = forms.ChoiceField(choices=COMPANY_CHOICES, label='회사명 선택', widget=forms.Select(attrs={'class': 'form-select'}))
     year_month = forms.ChoiceField(choices=get_year_month_choices(), label='실적 연월 선택', widget=forms.Select(attrs={'class': 'form-select'}))
     excel_file = forms.FileField(label='Select Excel File', widget=forms.ClearableFileInput(attrs={'class': 'form-control'}))
     
