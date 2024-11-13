@@ -3,6 +3,9 @@ from catalog.forms import ExcelUploadForm
 from catalog.models import ExcelUpload, ExcelUploadRecord
 import pandas as pd
 from django.utils.timezone import now
+import urllib3
+import requests
+import json, time
 
 def upload_excel(request):
     if request.method == 'POST':
@@ -51,7 +54,59 @@ def upload_excel(request):
     
     
 def upload_success(request):
-    return render(request, 'success.html')
+
+    text_response = request.session.get('api_result')
+
+    data = {
+        'upload_result': text_response,
+    }
+    return render(request, 'success.html', data)
+
+
+def call_api(request):
+    urllib3.disable_warnings()
+
+    login_body = {
+        "username":"sam_api",
+        "password":"tlrhfmgmlend@@00"
+        }
+    login_url = "https://dm1-apse.informaticacloud.com/saas/public/core/v3/login"
+    login_headers = {'Content-Type':'application/json; Accept:application/json'}
+    login_response = requests.post(login_url, data=json.dumps(login_body), headers=login_headers, verify=False)
+    login_response_list = login_response.json()
+    Session_ID = login_response_list["userInfo"]["sessionId"]
+    print('Session_ID : '+ Session_ID)
+    task_url = "https://apse1.dm1-apse.informaticacloud.com/"
+    task_api = "active-bpel/rt/REST_TEST_TASKFLOW"
+    task_headers = {
+        'Content-Type':'application/json',
+        'Accept':'application/json', 
+        'IDS-SESSION-ID':Session_ID
+        }
+    task_response = requests.post(task_url+task_api, headers=task_headers, verify=False)
+    task_response_json = task_response.json()
+    task_run_id = task_response_json["RunId"]
+    print('RunId : '+ task_run_id)
+    status_url = "https://apse1.dm1-apse.informaticacloud.com/active-bpel/services/tf/status/" + task_run_id
+    status_response = requests.get(status_url, headers=task_headers, verify=False)
+    if status_response.status_code == 200:
+        print("API 호출 성공:", status_response.json())
+        while True:
+            # 예시 URL입니다. 실제 API URL로 변경하세요.
+            response = requests.get(status_url, headers=task_headers, verify=False)
+            
+            if response.json().get('status') == 'SUCCESS':
+                request.session['api_result'] = response.json()['status']
+                print("작업이 성공했습니다!")
+                break
+            else:
+                print("작업이 아직 완료되지 않았습니다. 3초 후 다시 시도합니다.")
+                time.sleep(3)
+    else:
+        print("API 호출 실패:", status_response.status_code)
+        request.session['api_result'] = status_response.json()['status']
+
+    return status_response.status_code
 
 
 def excel_upload_result(request):
@@ -109,6 +164,8 @@ def commit_excel_upload(request):
         # 세션 데이터 정리 후 성공 페이지로 이동
         if 'upload_result' in request.session:
             del request.session['upload_result']
+
+        call_api(request) # 인포매티카 API 호출
 
         return redirect('upload_success')
 
